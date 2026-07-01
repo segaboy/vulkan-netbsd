@@ -6,20 +6,26 @@ and maintained.
 
 ---
 
-> ## ⚠️ Status: pre-alpha — no confirmed working Vulkan build yet
+> ## Status: alpha — Lavapipe Vulkan driver builds and links on NetBSD
 >
-> **Progress:** Mesa now reaches a **successful Meson configure** on NetBSD
-> 10.1 with the Vulkan software driver (Lavapipe / `swrast`) and LLVM 19.1.7
-> enabled. The environment setup and dependency builds are automated and
-> working.
+> **Milestone reached:** Mesa now **configures, compiles, and links** the
+> Lavapipe software Vulkan driver (`libvulkan_lvp.so`, ~17 MB) on NetBSD 10.1
+> amd64, against LLVM 19.1.7. `ldd` resolves every dependency cleanly. The
+> environment setup, dependency builds, and Mesa build are automated end to end.
 >
-> **Not done yet:** The actual Mesa **compile + link** step (`ninja`) has not
-> been confirmed end-to-end on NetBSD, so there is still **no verified working
-> Vulkan build here**. This remains an active, in-progress porting effort.
+> **What this is:** a confirmed **build-and-link** result — the whole toolchain
+> compiles and the driver binary links with all dependencies satisfied.
 >
-> Nothing here should be treated as final or authoritative. Steps, scripts, and
-> documents will change as the port progresses. If you're looking for working
-> Vulkan on NetBSD today, this isn't it — yet.
+> **What this is NOT (yet):**
+> - **Runtime execution is out of scope / unverified.** The target is a software
+>   driver built under VirtualBox with no GPU; this project verifies the build,
+>   not that Vulkan programs run.
+> - **One workaround is still in place.** The build applies `-Wno-error=format`
+>   to sidestep GCC rejecting Mesa's `%m` format specifier on NetBSD. A proper
+>   upstreamable fix (using `strerror(errno)`) is pending.
+>
+> Steps, scripts, and documents will continue to change. Treat this as a
+> working record of an active port, not a finished product.
 
 ---
 
@@ -50,7 +56,8 @@ project is to:
 vulkan-netbsd/
 ├── docs/
 │   ├── 01-environment-setup.md    Base system + pkgsrc + build deps
-│   └── 02-source-dependencies.md  Dependencies not in pkgsrc (built from source)
+│   ├── 02-source-dependencies.md  Dependencies not in pkgsrc (built from source)
+│   └── 03-mesa-build.md           Configure + compile Mesa (Lavapipe); port notes
 └── scripts/
     ├── setup-env.sh               Automates the environment setup
     ├── build-glslang.sh           Builds glslang (required by Mesa; not in pkgsrc)
