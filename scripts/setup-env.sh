@@ -282,8 +282,21 @@ phase_core_pkgs() {
 }
 
 phase_build_tools() {
-    pkg_add meson python312 pkgconf py312-mako
+    pkg_add meson python312 pkgconf
     pkg_add ninja || echo "ninja conflict is harmless (ninja-build provides the binary)"
+
+    # Mesa's meson configure probes EVERY python3.x interpreter it can find and
+    # requires each to import mako, yaml, AND provide a version-comparison class
+    # from `packaging` (distutils was removed from Python's stdlib in 3.12+, so
+    # `packaging` is now mandatory). pkgsrc may pull in both 3.12 and 3.13 as
+    # dependencies, and if the interpreter meson happens to select is missing
+    # any of these, configure fails with a misleading "Python >= 3.10 not found".
+    # Installing all three modules for BOTH interpreters makes the check pass
+    # regardless of which one meson picks.
+    pkg_add py312-mako py312-yaml py312-packaging || \
+        echo "note: some py312 modules may already be present"
+    pkg_add py313-mako py313-yaml py313-packaging || \
+        echo "note: py313 modules not installed (python3.13 may be absent) - continuing"
 }
 
 phase_python_symlink() {
@@ -294,6 +307,24 @@ phase_python_symlink() {
         echo "python3.12 not found; cannot create python3 symlink." >&2
         return 1
     fi
+
+    # Verify the interpreter can do everything Mesa's configure will require.
+    # This catches a broken/incomplete Python install (e.g. a truncated package
+    # from an unstable network) HERE, with a clear message, rather than as a
+    # confusing "Python >= 3.10 not found" failure deep in the Mesa configure.
+    echo "Verifying python3 can satisfy Mesa's requirements..."
+    if ! python3 -c "import types, enum, re" 2>/dev/null; then
+        echo "ERROR: python3 stdlib is broken (cannot import types/enum/re)." >&2
+        echo "The python312 package is likely incomplete - try:" >&2
+        echo "    pkg_delete -f python312 && pkg_add python312" >&2
+        return 1
+    fi
+    if ! python3 -c "from packaging.version import Version; import mako, yaml" 2>/dev/null; then
+        echo "ERROR: python3 is missing mako, yaml, or packaging." >&2
+        echo "Install them with: pkg_add py312-mako py312-yaml py312-packaging" >&2
+        return 1
+    fi
+    echo "python3 is ready (stdlib + mako + yaml + packaging all import cleanly)."
 }
 
 phase_llvm() {
@@ -367,8 +398,9 @@ your current shell. To load them now:
 
     . /root/.profile
 
-Next step: build glslang, then Mesa.
+Next steps: build glslang, then Mesa.
     sh build-glslang.sh
+    sh build-mesa.sh
 
 Full log of this run: $LOG
 EOF
