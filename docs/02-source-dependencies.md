@@ -43,7 +43,28 @@ collection. Building it from source is currently the only way to satisfy this
 dependency on NetBSD — and is, so far, a hard requirement for building Mesa's
 Vulkan driver.
 
-### Build steps
+### Quick start (automated)
+
+An automation script performs every step in this section. After completing
+`01-environment-setup.md` (or running `scripts/setup-env.sh`), run:
+
+```sh
+cd /root
+ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-glslang.sh
+sh build-glslang.sh
+```
+
+The script sources `/root/.profile`, verifies that `cmake` and `git` are
+present (failing with a clear message if the environment setup hasn't been run
+yet), clones glslang, builds it, installs it into `/usr/pkg`, and verifies
+`glslangValidator` is on `PATH`. It is **idempotent** — if the glslang source
+is already present it pulls the latest instead of failing, so it is safe to
+re-run.
+
+The rest of this section documents the steps the script performs, for
+reference and manual execution.
+
+### Build steps (manual)
 
 ```sh
 cd /usr/src/graphics
