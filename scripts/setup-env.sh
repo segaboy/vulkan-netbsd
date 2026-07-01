@@ -240,6 +240,11 @@ phase_pkgsrc() {
         echo "pkgsrc tree already present."
     fi
 
+    # Record which pkgsrc branch this tree is, so the prebuilt-artifact
+    # fingerprint (see scripts/lib-artifacts.sh) can tell whether a cached
+    # binary was built against a compatible pkgsrc.
+    echo "${PKGSRC_BRANCH#pkgsrc-}" > /usr/pkgsrc/.pkgsrc_branch
+
     if [ ! -x /usr/pkg/bin/bmake ]; then
         rm -rf /usr/pkgsrc/bootstrap/work
         cd /usr/pkgsrc/bootstrap
