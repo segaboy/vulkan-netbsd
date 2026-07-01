@@ -22,6 +22,37 @@ under VirtualBox; the target is the LLVM-backed software Vulkan driver
 
 ---
 
+## Quick start (automated)
+
+If you just want to prepare the environment without stepping through each
+command manually, use the automation script. On a fresh, minimal NetBSD 10.1
+install, logged in as root with a working network connection:
+
+```sh
+cd /root
+ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/setup-env.sh
+sh setup-env.sh
+```
+
+The script performs every step in this guide: it installs the compiler and
+X11 sets, bootstraps pkgsrc, configures the environment, and installs all
+build dependencies. It is **idempotent** — safe to run more than once. If it
+fails partway through, fix the issue and re-run it; completed steps are
+skipped.
+
+When it finishes, load the new environment variables into your current shell:
+
+```sh
+. /root/.profile
+```
+
+Then continue to the Mesa build (`docs/02-mesa-build.md`).
+
+The rest of this document explains each step the script performs, for
+reference and manual execution.
+
+---
+
 ## 0. Prerequisites
 
 Install NetBSD 10.1 (amd64) from the **official installer ISO** — not a cloud
