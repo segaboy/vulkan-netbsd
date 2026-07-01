@@ -7,9 +7,11 @@
 #         the last few build tools it needs (bison, flex), and runs the Meson
 #         configure targeting the Lavapipe software Vulkan driver.
 #
-# STATUS: This currently takes Mesa through a SUCCESSFUL MESON CONFIGURE.
-#         The actual compile+install step (ninja) is provided but has NOT yet
-#         been confirmed end-to-end on NetBSD. See docs.
+# STATUS: Mesa configures, compiles, and LINKS the Lavapipe Vulkan driver
+#         (libvulkan_lvp.so) on NetBSD 10.1 with the -Wno-error=format
+#         workaround below. This is a build-and-link result; runtime execution
+#         is out of scope (software-only, no GPU under VirtualBox). The install
+#         step (ninja install) is provided but less exercised than the compile.
 #
 # Run as root, with a working network connection.
 #
@@ -116,7 +118,16 @@ meson setup "$BUILD_DIR" \
   -Dplatforms=x11 \
   -Dglx=disabled \
   -Degl=disabled \
-  -Dgbm=disabled
+  -Dgbm=disabled \
+  -Dc_args="-Wno-error=format"
+
+# NOTE on -Dc_args="-Wno-error=format":
+# Mesa uses the %m format specifier (a glibc/syslog extension expanding to
+# strerror(errno)) in vk_errorf() calls in vk_drm_syncobj.c. On NetBSD, GCC's
+# -Werror=format rejects %m in non-syslog functions, which otherwise fails the
+# build. NetBSD libc supports %m at runtime, so demoting this to a warning is
+# safe for building/linking. The proper upstreamable fix is to replace %m with
+# an explicit strerror(errno) argument; tracked as a TODO.
 
 say "Meson configure complete"
 echo "Mesa configured successfully with the Vulkan swrast (Lavapipe) driver."
@@ -124,20 +135,23 @@ echo "Mesa configured successfully with the Vulkan swrast (Lavapipe) driver."
 # --- Step 4: (Optional) build -----------------------------------------------
 
 if [ "$DO_BUILD" -eq 1 ]; then
-    say "Building Mesa (ninja) - NOTE: not yet confirmed end-to-end on NetBSD"
+    say "Building Mesa (ninja) - compiles + links libvulkan_lvp.so on NetBSD"
     ninja -C "$BUILD_DIR" -j"$(sysctl -n hw.ncpu)"
 
     say "Installing Mesa to $PREFIX"
     ninja -C "$BUILD_DIR" install
 
     say "Mesa build + install step finished"
-    echo "If this completed cleanly, verify the Vulkan ICD was installed:"
+    echo "Verify the Lavapipe Vulkan driver was built:"
+    echo "    ls -la $BUILD_DIR/src/gallium/targets/lavapipe/libvulkan_lvp.so"
+    echo "    ldd    $BUILD_DIR/src/gallium/targets/lavapipe/libvulkan_lvp.so"
+    echo "And that the ICD manifest installed:"
     echo "    ls $PREFIX/share/vulkan/icd.d/"
 else
     cat << EOF
 
-Configure-only run complete. To attempt the compile + install step (not yet
-confirmed working end-to-end on NetBSD), re-run with:
+Configure complete. To compile + link the Lavapipe driver (confirmed working
+on NetBSD with the -Wno-error=format workaround) and install, re-run with:
 
     sh build-mesa.sh --build
 
