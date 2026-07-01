@@ -6,13 +6,16 @@ and maintained.
 
 ---
 
-> ## ⚠️ Status: pre-alpha — this does not work yet
+> ## ⚠️ Status: pre-alpha — no confirmed working Vulkan build yet
 >
-> **There is no working Vulkan build here yet.** This repository is an active,
-> in-progress porting effort. The environment setup and dependency builds
-> documented so far do run, but the end goal — a successful end-to-end Vulkan
-> (Lavapipe) build on NetBSD — has **not** been reached. Details are still
-> being worked out.
+> **Progress:** Mesa now reaches a **successful Meson configure** on NetBSD
+> 10.1 with the Vulkan software driver (Lavapipe / `swrast`) and LLVM 19.1.7
+> enabled. The environment setup and dependency builds are automated and
+> working.
+>
+> **Not done yet:** The actual Mesa **compile + link** step (`ninja`) has not
+> been confirmed end-to-end on NetBSD, so there is still **no verified working
+> Vulkan build here**. This remains an active, in-progress porting effort.
 >
 > Nothing here should be treated as final or authoritative. Steps, scripts, and
 > documents will change as the port progresses. If you're looking for working
@@ -50,7 +53,8 @@ vulkan-netbsd/
 │   └── 02-source-dependencies.md  Dependencies not in pkgsrc (built from source)
 └── scripts/
     ├── setup-env.sh               Automates the environment setup
-    └── build-glslang.sh           Builds glslang (required by Mesa; not in pkgsrc)
+    ├── build-glslang.sh           Builds glslang (required by Mesa; not in pkgsrc)
+    └── build-mesa.sh              Clones + configures Mesa (Vulkan swrast/Lavapipe)
 ```
 
 ## Getting started
@@ -65,7 +69,14 @@ sh setup-env.sh
 
 ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-glslang.sh
 sh build-glslang.sh
+
+ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-mesa.sh
+sh build-mesa.sh
 ```
+
+The last script clones Mesa and runs the Meson configure. It stops after a
+successful configure by default; the compile step (`ninja`) is gated behind an
+explicit `--build` flag because it is not yet confirmed working end-to-end.
 
 See `docs/01-environment-setup.md` for the full, commented walkthrough and
 notes on running over SSH.
