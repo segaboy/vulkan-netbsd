@@ -55,6 +55,34 @@ if ! command -v git >/dev/null 2>&1; then
     exit 1
 fi
 
+# --- Prebuilt fast path -----------------------------------------------------
+# If a prebuilt glslang artifact matching this machine's environment exists on
+# the configured GitHub Release, download and install it instead of building
+# from source. Falls back to the source build on any mismatch or failure.
+# Set ARTIFACT_TAG to choose the release; set NO_PREBUILT=1 to force a source
+# build (useful when refining the build itself).
+
+ART_LIB="$(dirname "$0")/lib-artifacts.sh"
+if [ ! -f "$ART_LIB" ]; then
+    # Script was likely fetched standalone via ftp; fetch the lib beside it.
+    ftp -o "$ART_LIB" \
+      "https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/lib-artifacts.sh" \
+      >/dev/null 2>&1 || true
+fi
+
+if [ "${NO_PREBUILT:-0}" != "1" ] && [ -f "$ART_LIB" ]; then
+    . "$ART_LIB"
+    say "Checking for a prebuilt glslang artifact"
+    if try_fetch_artifact glslang; then
+        if command -v glslangValidator >/dev/null 2>&1; then
+            say "Installed prebuilt glslang - skipping source build"
+            glslangValidator --version
+            exit 0
+        fi
+        echo "Prebuilt installed but glslangValidator not on PATH; building from source."
+    fi
+fi
+
 # --- Step 1: Clone glslang --------------------------------------------------
 
 say "Cloning glslang"
