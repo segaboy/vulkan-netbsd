@@ -77,6 +77,38 @@ if ! python3 -c "from packaging.version import Version; import mako, yaml" 2>/de
     exit 1
 fi
 
+# --- Prebuilt fast path -----------------------------------------------------
+# If a prebuilt Mesa (Lavapipe) artifact matching this machine's environment
+# exists on the configured GitHub Release, install it instead of cloning and
+# compiling Mesa. Falls back to the source build on any mismatch or failure.
+# Set ARTIFACT_TAG to choose the release; set NO_PREBUILT=1 to force a source
+# build (useful when refining the build itself).
+#
+# This only short-circuits when a build artifact is actually wanted (--build);
+# a plain configure-only run always proceeds to configure from source.
+
+if [ "$DO_BUILD" -eq 1 ]; then
+    ART_LIB="$(dirname "$0")/lib-artifacts.sh"
+    if [ ! -f "$ART_LIB" ]; then
+        ftp -o "$ART_LIB" \
+          "https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/lib-artifacts.sh" \
+          >/dev/null 2>&1 || true
+    fi
+
+    if [ "${NO_PREBUILT:-0}" != "1" ] && [ -f "$ART_LIB" ]; then
+        . "$ART_LIB"
+        say "Checking for a prebuilt Mesa (Lavapipe) artifact"
+        if try_fetch_artifact mesa; then
+            say "Installed prebuilt Mesa - skipping clone + compile"
+            echo "Lavapipe driver and ICD manifest installed into $PREFIX."
+            echo "Verify with:"
+            echo "    ls -la $PREFIX/lib/libvulkan_lvp.so"
+            echo "    ls    $PREFIX/share/vulkan/icd.d/"
+            exit 0
+        fi
+    fi
+fi
+
 # --- Step 1: Install remaining build tools (bison, flex) --------------------
 
 say "Installing bison and flex (parser/lexer, required by Mesa configure)"
