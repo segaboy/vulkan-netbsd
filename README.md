@@ -14,7 +14,16 @@ and maintained.
 > environment setup, dependency builds, and Mesa build are automated end to end.
 >
 > **What this is:** a confirmed **build-and-link** result — the whole toolchain
-> compiles and the driver binary links with all dependencies satisfied.
+> compiles and the driver binary links with all dependencies satisfied. As of
+> now the repository provides **everything needed to take a fresh, minimal
+> NetBSD 10.1 install all the way to a built Lavapipe Vulkan driver** — three
+> scripts and matching documentation, start to finish.
+>
+> **On the horizon:** once the port stabilizes and the remaining workaround is
+> resolved upstream, the intent is to make this far easier than a from-source
+> build — ideally **prebuilt binaries and/or a proper pkgsrc package**, so that
+> getting Vulkan on NetBSD becomes a simple install rather than a build. Not
+> available yet, but that's the direction.
 >
 > **What this is NOT (yet):**
 > - **Runtime execution is out of scope / unverified.** The target is a software
@@ -39,8 +48,9 @@ project is to:
 2. Document every step, including the dead ends, so the process is reproducible.
 3. Automate the setup so a fresh machine can be brought to a build-ready state
    with a couple of scripts.
-4. Eventually feed the necessary fixes upstream (to Mesa and to pkgsrc) so that
-   Vulkan on NetBSD becomes something you can simply install.
+4. Eventually feed the necessary fixes upstream (to Mesa and to pkgsrc) and
+   provide prebuilt binaries or a pkgsrc package, so that Vulkan on NetBSD
+   becomes something you can simply install rather than build from source.
 
 ## Scope and environment
 
@@ -81,9 +91,16 @@ ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-m
 sh build-mesa.sh
 ```
 
-The last script clones Mesa and runs the Meson configure. It stops after a
-successful configure by default; the compile step (`ninja`) is gated behind an
-explicit `--build` flag because it is not yet confirmed working end-to-end.
+The last script clones Mesa and runs the Meson configure. By default it stops
+after a successful configure; add `--build` to also run the compile + link
+step, which produces the Lavapipe Vulkan driver (`libvulkan_lvp.so`):
+
+```sh
+sh build-mesa.sh --build
+```
+
+Together, these three scripts take a fresh minimal install all the way to a
+built Vulkan software driver.
 
 See `docs/01-environment-setup.md` for the full, commented walkthrough and
 notes on running over SSH.
