@@ -1,9 +1,20 @@
-# Building the Vulkan Stack on NetBSD 10.1 — Environment Setup
+# Environment Setup Guide: NetBSD 10.1 Minimal Install
 
-This guide documents the steps to prepare a NetBSD 10.1 (amd64) system for
-porting and building the Vulkan software stack (Mesa/Lavapipe). It covers
-everything from a fresh install up to the point where the Mesa source is
-ready to be cloned and configured.
+> **Scope:** This guide covers environment preparation on a **minimal install
+> of NetBSD 10.1 (amd64)** — specifically the base ISO installer with no
+> additional sets selected during installation. If you used a cloud image,
+> a pre-built appliance, or selected additional sets during install, your
+> starting state will differ.
+>
+> **Status:** This is a living document. It reflects what has worked so far
+> during an active porting effort. Steps may be revised as the build process
+> evolves. Do not treat this as a final reference until a successful end-to-end
+> Vulkan build has been confirmed.
+
+This guide documents the steps to prepare a NetBSD 10.1 (amd64) minimal
+install system for building the Vulkan software stack (Mesa/Lavapipe). It
+covers everything from a fresh install up to the point where the Mesa source
+is ready to be cloned and configured.
 
 The goal is a **build environment**. Runtime GPU acceleration is not available
 under VirtualBox; the target is the LLVM-backed software Vulkan driver
@@ -95,7 +106,7 @@ cd /usr/pkgsrc/bootstrap
 The bootstrap takes a few minutes and builds a working `bmake` and `pkg_add`.
 
 > **Note:** If a previous bootstrap attempt failed, remove its work directory
-> before retrying, or the bootstrap will refuse to run:
+> before retrying:
 > ```sh
 > rm -rf /usr/pkgsrc/bootstrap/work
 > ```
@@ -105,8 +116,7 @@ The bootstrap takes a few minutes and builds a working `bmake` and `pkg_add`.
 ## 5. Configure the environment
 
 Set up the shell environment so the toolchain and pkgsrc tools can find each
-other. These values include both the pkgsrc prefix (`/usr/pkg`) and the X11
-prefix (`/usr/X11R7`):
+other:
 
 ```sh
 export PATH=/usr/pkg/bin:/usr/pkg/sbin:$PATH
@@ -130,12 +140,8 @@ EOF
 
 > **Two things to get right about `PKG_PATH`:**
 > - The directory is **case-sensitive**: it is `All`, not `ALL`.
-> - Do **not** leave a trailing slash that produces a double slash
->   (`.../All//cmake`) — `pkg_add` will report "Not Found".
-
-The `-Wl,-R` flags embed the RPATH so the runtime linker (`ld.elf_so`) can
-locate shared libraries in `/usr/pkg/lib` and `/usr/X11R7/lib` without extra
-configuration.
+> - Do **not** leave a trailing slash — it produces a double slash
+>   (`.../All//cmake`) and `pkg_add` will report "Not Found".
 
 ---
 
@@ -146,8 +152,7 @@ pkg_add cmake git mozilla-rootcerts-openssl
 ```
 
 `mozilla-rootcerts-openssl` provides the CA certificate bundle. Without it,
-HTTPS fetches (git clones, distfile downloads) fail with certificate
-validation errors.
+HTTPS fetches and git clones fail with certificate validation errors.
 
 ---
 
@@ -157,16 +162,14 @@ validation errors.
 pkg_add meson ninja python312 pkgconf py312-mako
 ```
 
-> **Note:** `ninja` may report a conflict with `ninja-build`, which is often
-> already installed as a dependency of another package. This is harmless —
-> `ninja-build` provides the `ninja` binary. Verify with `ninja --version`.
+> **Note:** `ninja` may conflict with `ninja-build`, which is often already
+> installed as a dependency. This is harmless — verify with `ninja --version`.
 
 Why these tools:
 
 - **meson / ninja** — Mesa's build system.
-- **python3 / py312-mako** — Mesa uses Python (with the Mako templating
-  library) at build time to auto-generate C source (dispatch tables,
-  extension lists, format tables) before compilation.
+- **python3 / py312-mako** — Mesa uses Python with the Mako templating
+  library at build time to auto-generate C source files before compilation.
 
 ---
 
@@ -185,11 +188,10 @@ python3 --version           # expect: Python 3.12.x
 ## 9. Install LLVM
 
 LLVM is required for **Lavapipe**, the software Vulkan driver. Lavapipe uses
-LLVM to JIT-compile shaders on the CPU at runtime, which is what allows Vulkan
-to work without a real GPU.
+LLVM to JIT-compile shaders on the CPU at runtime, allowing Vulkan to function
+without a real GPU.
 
-Install the prebuilt binary package — there is no advantage to building LLVM
-from source unless you intend to modify LLVM itself:
+Install the prebuilt binary package:
 
 ```sh
 pkg_add llvm
@@ -201,8 +203,7 @@ llvm-config --version       # expect: 19.1.7
 ## 10. Verify the base libraries
 
 The DRM and X11 libraries from the `xbase`/`xcomp` sets (Step 3) do **not**
-need to be installed via pkgsrc. Confirm they are present and discoverable by
-pkg-config:
+need to be installed via pkgsrc. Confirm they are present and discoverable:
 
 ```sh
 pkg-config --modversion libdrm      # expect: 2.4.109
@@ -211,13 +212,9 @@ ls /usr/X11R7/lib/libX11*
 ls /usr/X11R7/lib/libxcb*
 ```
 
-If these resolve, the environment is complete.
-
 ---
 
-## Environment is ready
-
-At this point the system has:
+## Environment summary
 
 | Component | Source | Version |
 |---|---|---|
@@ -230,46 +227,37 @@ At this point the system has:
 | python3 | pkgsrc binary | 3.12.x |
 | LLVM | pkgsrc binary | 19.1.7 |
 
-The next stage is to clone Mesa and configure the build with Meson, targeting
-the Lavapipe (`swrast`) Vulkan driver.
-
 ---
 
-## Appendix: Pitfalls encountered (and how to avoid them)
+## Appendix: Pitfalls encountered
 
-These are the specific mistakes made during the first pass through this
-process, recorded so they can be skipped on future setups:
+1. **Cloud image boot loop.** A bsd-cloud-image.org image hung on cloud-init
+   metadata lookups at boot. Fix: use the plain installer ISO.
 
-1. **Cloud image boot loop.** A bsd-cloud-image.org image was tried first and
-   hung on cloud-init metadata lookups (`169.254.169.254`, "Connection
-   refused" in a loop). Fix: use the plain installer ISO.
+2. **No C compiler after minimal install.** Bootstrap failed with "no
+   acceptable C compiler found." Fix: install the `comp` set before
+   bootstrapping pkgsrc.
 
-2. **No C compiler after a minimal install.** The `bootstrap` failed with
-   "no acceptable C compiler found in $PATH." Fix: install the `comp` set
-   (Step 2) *before* bootstrapping pkgsrc.
-
-3. **`ftp` + `tar` on one line.** Combining the download and extract on a
-   single line caused the extract to be silently skipped. Fix: separate
-   commands.
+3. **`ftp` + `tar` on one line.** The extract was silently skipped. Fix:
+   separate commands.
 
 4. **Stale bootstrap work directory.** Re-running `./bootstrap` after a
    failure aborted with "work already exists." Fix: `rm -rf
    /usr/pkgsrc/bootstrap/work` before retrying.
 
 5. **`PKG_PATH` unset.** `pkg_add` reported "no pkg found" for everything.
-   Fix: set `PKG_PATH` to the binary package mirror (Step 5).
+   Fix: set `PKG_PATH` to the binary mirror (Step 5).
 
-6. **`PKG_PATH` casing / double slash.** `ALL` (wrong) vs `All` (correct), and
-   a trailing slash producing `//` in the URL both caused "Not Found." Fix:
-   use exactly `.../10.1/All` with no trailing slash.
+6. **`PKG_PATH` casing / double slash.** `ALL` vs `All`, and a trailing slash
+   both caused "Not Found." Fix: use exactly `.../10.1/All` with no trailing
+   slash.
 
-7. **Looking for X11/DRM libraries in pkgsrc.** `libdrm`, `libX11`, `libxcb`,
-   `libxshmfence`, etc. are not pkgsrc packages on NetBSD — they come from the
-   `xbase`/`xcomp` sets. Fix: install the X11 sets (Step 3); do not try to
-   `pkg_add` them.
+7. **X11/DRM libraries not in pkgsrc.** `libdrm`, `libX11`, `libxcb`,
+   `libxshmfence` are not pkgsrc packages — they come from `xbase`/`xcomp`.
+   Fix: install the X11 sets (Step 3).
 
 8. **`ninja` vs `ninja-build` conflict.** Harmless; `ninja-build` already
    provides the binary.
 
-9. **`python3` not found.** pkgsrc installs `python3.12`, not `python3`. Fix:
-   symlink (Step 8).
+9. **`python3` not found.** pkgsrc installs `python3.12`, not `python3`.
+   Fix: symlink (Step 8).
