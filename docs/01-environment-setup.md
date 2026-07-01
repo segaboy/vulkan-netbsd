@@ -46,10 +46,66 @@ When it finishes, load the new environment variables into your current shell:
 . /root/.profile
 ```
 
-Then continue to the Mesa build (`docs/02-mesa-build.md`).
+Then continue to building glslang (`scripts/build-glslang.sh`, documented in
+`docs/02-source-dependencies.md`) and then Mesa.
 
 The rest of this document explains each step the script performs, for
 reference and manual execution.
+
+### Progress output and logging
+
+The script runs as ten numbered phases. Each phase shows a progress bar, a
+spinner, and an elapsed-time counter, followed by an `ok` or `FAILED` marker
+and the phase duration. A summary table is printed at the end.
+
+Crucially, **all command output is written to a persistent log**:
+
+```
+/root/vulkan-netbsd-setup.log
+```
+
+This log is the source of truth. Several of these phases are large downloads
+(pkgsrc is ~90 MB; LLVM is large), and on a slow or unstable link they can take
+a long time. If your SSH session drops mid-run, the log tells you exactly where
+things stand — reconnect and tail it:
+
+```sh
+tail -f /root/vulkan-netbsd-setup.log
+```
+
+The spinner also watches the log's size. If no new output appears for ~25
+seconds — the signature of a network stall rather than a slow-but-working
+download — it flags `(no new output ... - network stall?)` on the status line,
+so you can tell a wedged transfer apart from one that is merely slow.
+
+### Running detached (recommended on flaky connections)
+
+Because the phases include long downloads, a dropped SSH session can interrupt
+an interactive run. The script sets a `HUP` trap to try to survive a hangup,
+but the most robust approach on an unreliable link is to run it detached and
+watch the log from a second session:
+
+```sh
+nohup sh setup-env.sh >/dev/null 2>&1 &
+tail -f /root/vulkan-netbsd-setup.log
+```
+
+The run continues even if the SSH session that launched it disconnects; when
+you reconnect, tail the log again to see current progress. Because the script
+is idempotent, if a run is ever lost entirely you can simply start it again and
+it resumes from the first incomplete phase.
+
+> **Note on network mode.** Over VirtualBox with a wireless host, **NAT with
+> port forwarding is far more reliable than a Bridged adapter.** Bridged mode
+> puts the guest's MAC directly on the WiFi, which access points frequently
+> rate-limit or drop — producing exactly the stalled downloads and reset SSH
+> sessions the stall detector was added to surface. NAT routes guest traffic
+> through the host's own network stack, which WiFi handles cleanly, and avoids
+> the IPv6 failover delays seen on bridged setups. To connect over SSH with
+> NAT, forward host port 2222 to guest port 22 and use keepalives:
+> ```sh
+> ssh -p 2222 -o ServerAliveInterval=60 -o ServerAliveCountMax=10 root@127.0.0.1
+> ```
 
 ---
 
