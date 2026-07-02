@@ -31,9 +31,27 @@ SRCDIR="/usr/src/graphics"
 PREFIX="/usr/pkg"
 MESA_REPO="https://gitlab.freedesktop.org/mesa/mesa.git"
 BUILD_DIR="build"
+LOG="/root/vulkan-netbsd-mesa.log"
 
 DO_BUILD=0
 [ "$1" = "--build" ] && DO_BUILD=1
+
+# --- Persistent logging -----------------------------------------------------
+# Capture everything this script prints to a log file (in addition to the
+# terminal), so a run can be inspected afterward or after an SSH drop:
+#     tail -f /root/vulkan-netbsd-mesa.log
+# Re-exec once through tee; the VNB_LOGGING guard prevents an infinite loop.
+# Placed after argument parsing so "$@" (e.g. --build) is preserved.
+if [ -z "${VNB_LOGGING:-}" ]; then
+    VNB_LOGGING=1
+    export VNB_LOGGING
+    {
+        echo "############################################################"
+        echo "# build-mesa.sh run: $(date)  args: $*"
+        echo "############################################################"
+    } >> "$LOG"
+    exec sh "$0" "$@" 2>&1 | tee -a "$LOG"
+fi
 
 # --- Helpers ----------------------------------------------------------------
 
