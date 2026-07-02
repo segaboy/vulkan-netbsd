@@ -27,14 +27,23 @@ Prerequisites:
 ```sh
 cd /root
 ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-mesa.sh
-sh build-mesa.sh          # clone + configure (stops after a successful configure)
-sh build-mesa.sh --build  # also run the ninja compile + install
+sh build-mesa.sh              # clone + configure (stops after a successful configure)
+sh build-mesa.sh --build      # also run the ninja compile + install
+sh build-mesa.sh --build --clean   # force a fresh build from scratch
 ```
 
 The script installs `bison`/`flex`, clones Mesa, and runs the Meson configure.
 It defaults to configure-only; the compile step is behind `--build`. On the
 `--build` path it first checks for a matching prebuilt artifact (see
 `04-prebuilt-artifacts.md`) and falls back to a source build if none exists.
+
+**Resuming after an interruption or crash:** if a build is interrupted (SSH
+drop, power loss, VM crash), just run the same command again. The script
+detects the existing configured build directory and **resumes** from where it
+left off — `ninja` only rebuilds what is missing — so you never have to resume
+the build by hand. Use `--clean` to override this and rebuild from scratch (for
+example, if a resumed build fails in a way that suggests a corrupted object
+from the crash).
 
 All output is also written to `/root/vulkan-netbsd-mesa.log`. The `ninja`
 compile step, when run manually, can additionally be teed to
