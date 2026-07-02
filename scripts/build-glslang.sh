@@ -14,6 +14,8 @@
 #     ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-glslang.sh
 #     sh build-glslang.sh
 #
+# All output is also written to /root/vulkan-netbsd-glslang.log
+#
 
 set -e   # stop on the first error
 
@@ -22,6 +24,23 @@ set -e   # stop on the first error
 SRCDIR="/usr/src/graphics"
 PREFIX="/usr/pkg"
 GLSLANG_REPO="https://github.com/KhronosGroup/glslang.git"
+LOG="/root/vulkan-netbsd-glslang.log"
+
+# --- Persistent logging -----------------------------------------------------
+# Capture everything this script prints to a log file (in addition to the
+# terminal), so a run can be inspected afterward or after an SSH drop:
+#     tail -f /root/vulkan-netbsd-glslang.log
+# Re-exec once through tee; the VNB_LOGGING guard prevents an infinite loop.
+if [ -z "${VNB_LOGGING:-}" ]; then
+    VNB_LOGGING=1
+    export VNB_LOGGING
+    {
+        echo "############################################################"
+        echo "# build-glslang.sh run: $(date)"
+        echo "############################################################"
+    } >> "$LOG"
+    exec sh "$0" "$@" 2>&1 | tee -a "$LOG"
+fi
 
 # --- Helpers ----------------------------------------------------------------
 
