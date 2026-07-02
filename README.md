@@ -6,35 +6,35 @@ and maintained.
 
 ---
 
-> ## Status: alpha — Lavapipe Vulkan driver builds and links on NetBSD
+> ## Status: beta — Lavapipe Vulkan driver builds, installs, and registers on NetBSD
 >
-> **Milestone reached:** Mesa now **configures, compiles, and links** the
-> Lavapipe software Vulkan driver (`libvulkan_lvp.so`, ~17 MB) on NetBSD 10.1
-> amd64, against LLVM 19.1.7. `ldd` resolves every dependency cleanly. The
-> environment setup, dependency builds, and Mesa build are automated end to end.
+> **Milestone reached:** Mesa configures, compiles, links, **installs**, and
+> **registers** the Lavapipe software Vulkan driver on NetBSD 10.1 amd64,
+> against LLVM 19.1.7. The driver (`libvulkan_lvp.so`, ~17 MB) installs into
+> `/usr/pkg/lib`, and its ICD manifest (advertising Vulkan API 1.4) installs
+> into `/usr/pkg/share/vulkan/icd.d/`, so a Vulkan loader on the system can
+> discover it. `ldd` resolves every dependency cleanly. The entire process —
+> environment setup, dependency builds, the Mesa build, and installation — is
+> automated end to end and reproducible on a fresh install.
 >
-> **What this is:** a confirmed **build-and-link** result — the whole toolchain
-> compiles and the driver binary links with all dependencies satisfied. As of
-> now the repository provides **everything needed to take a fresh, minimal
-> NetBSD 10.1 install all the way to a built Lavapipe Vulkan driver** — three
-> scripts and matching documentation, start to finish.
->
-> **On the horizon:** once the port stabilizes and the remaining workaround is
-> resolved upstream, the intent is to make this far easier than a from-source
-> build — ideally **prebuilt binaries and/or a proper pkgsrc package**, so that
-> getting Vulkan on NetBSD becomes a simple install rather than a build. Not
-> available yet, but that's the direction.
+> **Prebuilt binaries are coming.** The tooling to build, fingerprint, and
+> publish prebuilt artifacts is in place, and the build scripts already know how
+> to fetch and install a matching prebuilt instead of building from source. Once
+> a build machine is publishing releases, installing the driver will be a
+> download rather than a multi-hour build. That's the near-term direction.
 >
 > **What this is NOT (yet):**
-> - **Runtime execution is out of scope / unverified.** The target is a software
->   driver built under VirtualBox with no GPU; this project verifies the build,
->   not that Vulkan programs run.
+> - **Running Vulkan programs needs the loader.** This project builds and
+>   installs the Vulkan *driver* (the Lavapipe ICD). Actually executing a Vulkan
+>   application also requires the Vulkan *loader* (`libvulkan.so.1`), which is
+>   the next component to bring up. Runtime execution is therefore not yet
+>   verified.
 > - **One workaround is still in place.** The build applies `-Wno-error=format`
 >   to sidestep GCC rejecting Mesa's `%m` format specifier on NetBSD. A proper
 >   upstreamable fix (using `strerror(errno)`) is pending.
 >
-> Steps, scripts, and documents will continue to change. Treat this as a
-> working record of an active port, not a finished product.
+> Steps, scripts, and documents will continue to change as the loader and the
+> release pipeline come together.
 
 ---
 
@@ -67,11 +67,15 @@ vulkan-netbsd/
 ├── docs/
 │   ├── 01-environment-setup.md    Base system + pkgsrc + build deps
 │   ├── 02-source-dependencies.md  Dependencies not in pkgsrc (built from source)
-│   └── 03-mesa-build.md           Configure + compile Mesa (Lavapipe); port notes
+│   ├── 03-mesa-build.md           Configure + compile Mesa (Lavapipe); port notes
+│   └── 04-prebuilt-artifacts.md   Build-once / reuse prebuilt binaries
 └── scripts/
     ├── setup-env.sh               Automates the environment setup
     ├── build-glslang.sh           Builds glslang (required by Mesa; not in pkgsrc)
-    └── build-mesa.sh              Clones + configures Mesa (Vulkan swrast/Lavapipe)
+    ├── build-mesa.sh              Clones + configures + compiles Mesa (Lavapipe)
+    ├── install-mesa.sh            Installs the built driver + ICD manifest
+    ├── lib-artifacts.sh           Shared: fingerprint + prebuilt fetch helpers
+    └── package-artifacts.sh       Packages built binaries into release tarballs
 ```
 
 ## Getting started
@@ -88,19 +92,21 @@ ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-g
 sh build-glslang.sh
 
 ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-mesa.sh
-sh build-mesa.sh
-```
-
-The last script clones Mesa and runs the Meson configure. By default it stops
-after a successful configure; add `--build` to also run the compile + link
-step, which produces the Lavapipe Vulkan driver (`libvulkan_lvp.so`):
-
-```sh
 sh build-mesa.sh --build
+
+ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/install-mesa.sh
+sh install-mesa.sh
 ```
 
-Together, these three scripts take a fresh minimal install all the way to a
-built Vulkan software driver.
+`build-mesa.sh --build` clones, configures, and compiles Mesa, producing the
+Lavapipe Vulkan driver (`libvulkan_lvp.so`). `install-mesa.sh` then installs
+that driver and its ICD manifest into `/usr/pkg` and verifies the registration.
+
+If a build is interrupted or the machine crashes, re-run the same command — the
+build scripts detect the existing build and resume automatically.
+
+Together, these scripts take a fresh minimal install all the way to an
+installed, registered Vulkan software driver.
 
 See `docs/01-environment-setup.md` for the full, commented walkthrough and
 notes on running over SSH.
