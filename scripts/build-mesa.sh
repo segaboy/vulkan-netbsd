@@ -17,10 +17,14 @@
 #
 # Usage:
 #     ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-mesa.sh
-#     sh build-mesa.sh
+#     sh build-mesa.sh            # clone + configure only
+#     sh build-mesa.sh --build    # also compile + install the Lavapipe driver
+#     sh build-mesa.sh --build --clean   # force a fresh build from scratch
 #
-#     # To also run the (unconfirmed) compile step:
-#     sh build-mesa.sh --build
+# If a build is interrupted or the machine crashes, just run the same command
+# again: the script detects the existing configured build and RESUMES it
+# automatically (ninja rebuilds only what is missing). Use --clean to override
+# this and rebuild from scratch.
 #
 
 set -e
@@ -34,7 +38,13 @@ BUILD_DIR="build"
 LOG="/root/vulkan-netbsd-mesa.log"
 
 DO_BUILD=0
-[ "$1" = "--build" ] && DO_BUILD=1
+FORCE_CLEAN=0
+for _arg in "$@"; do
+    case "$_arg" in
+        --build) DO_BUILD=1 ;;
+        --clean) FORCE_CLEAN=1 ;;
+    esac
+done
 
 # --- Persistent logging -----------------------------------------------------
 # Capture everything this script prints to a log file (in addition to the
@@ -133,54 +143,86 @@ say "Installing bison and flex (parser/lexer, required by Mesa configure)"
 # Mesa accepts bison or byacc; it needs flex for the lexer. Install both.
 pkg_add bison flex || echo "note: bison/flex may already be present"
 
-# --- Step 2: Clone Mesa -----------------------------------------------------
+# --- Resume detection -------------------------------------------------------
+# If a previously configured build directory exists (has build.ninja), we can
+# RESUME from it instead of wiping and starting over - ninja only rebuilds what
+# is missing. This makes the script recover automatically from an interrupted
+# or crashed build, so a user never has to know how to resume ninja by hand.
+#
+# --clean (FORCE_CLEAN) overrides this and forces a fresh build from scratch.
+# A partially-configured dir (exists but no build.ninja) is treated as broken
+# and rebuilt clean, since it cannot be resumed safely.
 
-say "Cloning Mesa"
-mkdir -p "$SRCDIR"
-cd "$SRCDIR"
-if [ ! -d mesa ]; then
-    git clone "$MESA_REPO"
+RESUME=0
+if [ "$FORCE_CLEAN" -eq 0 ] && [ -f "$SRCDIR/mesa/$BUILD_DIR/build.ninja" ]; then
+    RESUME=1
+fi
+
+# --- Step 2: Clone Mesa (or reuse existing source when resuming) -------------
+
+if [ "$RESUME" -eq 1 ]; then
+    say "Existing configured build found - RESUMING"
+    echo "A previously configured Mesa build directory was found."
+    echo "Resuming from where it left off (normal after an interrupted or"
+    echo "crashed build). The existing source is used as-is; it is not updated,"
+    echo "so the build stays consistent with what was already compiled."
+    echo ""
+    echo "If the build later fails in a way that makes no sense, start fresh:"
+    echo "    sh build-mesa.sh --build --clean"
+    cd "$SRCDIR/mesa"
 else
-    echo "Mesa source already present, pulling latest."
-    cd mesa && git pull && cd ..
+    say "Cloning Mesa"
+    mkdir -p "$SRCDIR"
+    cd "$SRCDIR"
+    if [ ! -d mesa ]; then
+        git clone "$MESA_REPO"
+    else
+        echo "Mesa source already present, pulling latest."
+        cd mesa && git pull && cd ..
+    fi
+    cd "$SRCDIR/mesa"
 fi
 
 # --- Step 3: Configure with Meson (Lavapipe / swrast) -----------------------
+# Skipped entirely when resuming - the existing build.ninja already reflects
+# the configured build.
 
-say "Configuring Mesa (Meson) - Vulkan swrast (Lavapipe), gallium llvmpipe"
-cd "$SRCDIR/mesa"
+if [ "$RESUME" -eq 1 ]; then
+    say "Skipping configure (already configured; resuming build)"
+else
+    say "Configuring Mesa (Meson) - Vulkan swrast (Lavapipe), gallium llvmpipe"
 
-# Wipe any previous build dir for a clean, reproducible configure.
-rm -rf "$BUILD_DIR"
+    # Wipe any previous build dir for a clean, reproducible configure.
+    rm -rf "$BUILD_DIR"
 
-# Flag notes:
-#   -Dvulkan-drivers=swrast     Lavapipe, the software Vulkan driver (the target)
-#   -Dgallium-drivers=llvmpipe  LLVM-backed software rasterizer Lavapipe builds on
-#   -Dplatforms=x11             window-system integration (X11 libs from xbase/xcomp)
-#   -Dglx/-Degl/-Dgbm=disabled  turn off OpenGL-adjacent pieces we don't need,
-#                               reducing the surface for platform-specific issues
-# LLVM is auto-detected via llvm-config on PATH (no explicit flag needed).
-meson setup "$BUILD_DIR" \
-  --prefix="$PREFIX" \
-  -Dbuildtype=release \
-  -Dvulkan-drivers=swrast \
-  -Dgallium-drivers=llvmpipe \
-  -Dplatforms=x11 \
-  -Dglx=disabled \
-  -Degl=disabled \
-  -Dgbm=disabled \
-  -Dc_args="-Wno-error=format"
+    # Flag notes:
+    #   -Dvulkan-drivers=swrast     Lavapipe, the software Vulkan driver (target)
+    #   -Dgallium-drivers=llvmpipe  LLVM-backed software rasterizer for Lavapipe
+    #   -Dplatforms=x11             window-system integration (X11 from xbase/xcomp)
+    #   -Dglx/-Degl/-Dgbm=disabled  turn off OpenGL-adjacent pieces we don't need
+    # LLVM is auto-detected via llvm-config on PATH (no explicit flag needed).
+    meson setup "$BUILD_DIR" \
+      --prefix="$PREFIX" \
+      -Dbuildtype=release \
+      -Dvulkan-drivers=swrast \
+      -Dgallium-drivers=llvmpipe \
+      -Dplatforms=x11 \
+      -Dglx=disabled \
+      -Degl=disabled \
+      -Dgbm=disabled \
+      -Dc_args="-Wno-error=format"
 
-# NOTE on -Dc_args="-Wno-error=format":
-# Mesa uses the %m format specifier (a glibc/syslog extension expanding to
-# strerror(errno)) in vk_errorf() calls in vk_drm_syncobj.c. On NetBSD, GCC's
-# -Werror=format rejects %m in non-syslog functions, which otherwise fails the
-# build. NetBSD libc supports %m at runtime, so demoting this to a warning is
-# safe for building/linking. The proper upstreamable fix is to replace %m with
-# an explicit strerror(errno) argument; tracked as a TODO.
+    # NOTE on -Dc_args="-Wno-error=format":
+    # Mesa uses the %m format specifier (a glibc/syslog extension expanding to
+    # strerror(errno)) in vk_errorf() calls in vk_drm_syncobj.c. On NetBSD, GCC's
+    # -Werror=format rejects %m in non-syslog functions, which otherwise fails
+    # the build. NetBSD libc supports %m at runtime, so demoting this to a
+    # warning is safe for building/linking. The proper upstreamable fix is to
+    # replace %m with an explicit strerror(errno) argument; tracked as a TODO.
 
-say "Meson configure complete"
-echo "Mesa configured successfully with the Vulkan swrast (Lavapipe) driver."
+    say "Meson configure complete"
+    echo "Mesa configured successfully with the Vulkan swrast (Lavapipe) driver."
+fi
 
 # --- Step 4: (Optional) build -----------------------------------------------
 
