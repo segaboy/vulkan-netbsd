@@ -110,3 +110,22 @@ notes on running over SSH.
 This is a personal work-in-progress. Expect churn. The documentation is written
 as a running record of what actually worked (and what didn't), so it doubles as
 field notes for anyone attempting the same port.
+
+## License
+
+The original work in this repository — the scripts, documentation, and any
+patches authored here — is released under the MIT License (see `LICENSE`).
+
+This project builds, installs, and (optionally) redistributes third-party
+software that is **not** covered by that license and retains its own:
+
+- **Mesa** — primarily MIT-licensed (some components under other permissive
+  licenses).
+- **glslang** — permissive licenses (BSD-style, Apache 2.0, and Khronos terms).
+- **LLVM** — Apache 2.0 with LLVM Exceptions. LLVM is installed separately via
+  pkgsrc and is not redistributed by this project.
+
+Prebuilt artifacts produced by `scripts/package-artifacts.sh` bundle the
+relevant upstream license texts (under `share/licenses/`) so that binary
+redistribution preserves each project's attribution. If you publish artifacts,
+keep those files intact.
