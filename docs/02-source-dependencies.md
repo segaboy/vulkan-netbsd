@@ -56,10 +56,14 @@ sh build-glslang.sh
 
 The script sources `/root/.profile`, verifies that `cmake` and `git` are
 present (failing with a clear message if the environment setup hasn't been run
-yet), clones glslang, builds it, installs it into `/usr/pkg`, and verifies
-`glslangValidator` is on `PATH`. It is **idempotent** — if the glslang source
-is already present it pulls the latest instead of failing, so it is safe to
-re-run.
+yet), checks for a matching prebuilt artifact (see `04-prebuilt-artifacts.md`)
+and falls back to source if none exists, clones glslang, builds it, installs it
+into `/usr/pkg`, and verifies `glslangValidator` is on `PATH`. It is
+**idempotent** — if the glslang source is already present it pulls the latest
+instead of failing, so it is safe to re-run.
+
+All output is also written to `/root/vulkan-netbsd-glslang.log`, so a run can be
+inspected afterward or tailed from a second SSH session if the connection drops.
 
 The rest of this section documents the steps the script performs, for
 reference and manual execution.
