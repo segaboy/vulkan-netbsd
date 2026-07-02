@@ -51,7 +51,8 @@ An automation script performs every step in this section. After completing
 ```sh
 cd /root
 ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-glslang.sh
-sh build-glslang.sh
+sh build-glslang.sh            # build + install glslang
+sh build-glslang.sh --clean    # force a fresh build from scratch
 ```
 
 The script sources `/root/.profile`, verifies that `cmake` and `git` are
@@ -61,6 +62,11 @@ and falls back to source if none exists, clones glslang, builds it, installs it
 into `/usr/pkg`, and verifies `glslangValidator` is on `PATH`. It is
 **idempotent** — if the glslang source is already present it pulls the latest
 instead of failing, so it is safe to re-run.
+
+**Resuming after an interruption or crash:** if the build is interrupted, run
+the same command again — the script detects the existing configured build
+directory and resumes instead of starting over. Use `--clean` to force a fresh
+build from scratch.
 
 All output is also written to `/root/vulkan-netbsd-glslang.log`, so a run can be
 inspected afterward or tailed from a second SSH session if the connection drops.
