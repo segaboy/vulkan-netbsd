@@ -12,7 +12,12 @@
 #
 # Usage:
 #     ftp https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/build-glslang.sh
-#     sh build-glslang.sh
+#     sh build-glslang.sh            # build + install glslang
+#     sh build-glslang.sh --clean    # force a fresh build from scratch
+#
+# If a build is interrupted or the machine crashes, just run the same command
+# again: the script detects the existing configured build and RESUMES it
+# automatically. Use --clean to override this and rebuild from scratch.
 #
 # All output is also written to /root/vulkan-netbsd-glslang.log
 #
@@ -25,6 +30,13 @@ SRCDIR="/usr/src/graphics"
 PREFIX="/usr/pkg"
 GLSLANG_REPO="https://github.com/KhronosGroup/glslang.git"
 LOG="/root/vulkan-netbsd-glslang.log"
+
+FORCE_CLEAN=0
+for _arg in "$@"; do
+    case "$_arg" in
+        --clean) FORCE_CLEAN=1 ;;
+    esac
+done
 
 # --- Persistent logging -----------------------------------------------------
 # Capture everything this script prints to a log file (in addition to the
@@ -102,33 +114,70 @@ if [ "${NO_PREBUILT:-0}" != "1" ] && [ -f "$ART_LIB" ]; then
     fi
 fi
 
-# --- Step 1: Clone glslang --------------------------------------------------
+# --- Resume detection -------------------------------------------------------
+# If a previously configured CMake build directory exists (has CMakeCache.txt),
+# RESUME from it instead of re-cloning/reconfiguring - cmake --build only
+# rebuilds what changed, so this recovers automatically from an interrupted or
+# crashed build without the user needing to know how. --clean forces a fresh
+# build. A partial dir (exists but no CMakeCache.txt) is treated as broken and
+# rebuilt clean.
 
-say "Cloning glslang"
-mkdir -p "$SRCDIR"
-cd "$SRCDIR"
-if [ ! -d glslang ]; then
-    git clone "$GLSLANG_REPO"
-else
-    echo "glslang source already present, pulling latest."
-    cd glslang && git pull && cd ..
+RESUME=0
+if [ "$FORCE_CLEAN" -eq 0 ] && [ -f "$SRCDIR/glslang/build/CMakeCache.txt" ]; then
+    RESUME=1
 fi
 
-# --- Step 2: Configure ------------------------------------------------------
+# --- Step 1: Clone glslang (or reuse existing source when resuming) ----------
 
-say "Configuring glslang (CMake)"
-cd "$SRCDIR/glslang"
+if [ "$RESUME" -eq 1 ]; then
+    say "Existing configured build found - RESUMING"
+    echo "A previously configured glslang build directory was found."
+    echo "Resuming from where it left off (normal after an interrupted or"
+    echo "crashed build). The existing source is used as-is; it is not updated."
+    echo ""
+    echo "If the build later fails in a way that makes no sense, start fresh:"
+    echo "    sh build-glslang.sh --clean"
+    cd "$SRCDIR/glslang"
+else
+    say "Cloning glslang"
+    mkdir -p "$SRCDIR"
+    cd "$SRCDIR"
+    if [ ! -d glslang ]; then
+        git clone "$GLSLANG_REPO"
+    else
+        echo "glslang source already present, pulling latest."
+        cd glslang && git pull && cd ..
+    fi
+    cd "$SRCDIR/glslang"
+fi
 
-# -DENABLE_OPT=OFF        skip the optional SPIRV-Tools optimizer dependency
-#                         (would otherwise be fetched by update_glslang_sources.py)
-# -DENABLE_GLSLANG_BINARIES=ON  build the standalone glslangValidator binary
-# -DGLSLANG_TESTS=OFF     skip the test suite
-cmake -B build \
-  -DCMAKE_BUILD_TYPE=Release \
-  -DCMAKE_INSTALL_PREFIX="$PREFIX" \
-  -DENABLE_OPT=OFF \
-  -DENABLE_GLSLANG_BINARIES=ON \
-  -DGLSLANG_TESTS=OFF
+# --- Step 2: Configure (skipped when resuming) ------------------------------
+
+if [ "$RESUME" -eq 1 ]; then
+    say "Skipping configure (already configured; resuming build)"
+else
+    say "Configuring glslang (CMake)"
+
+    # If a stale/broken build dir exists (no cache), remove it for a clean start.
+    if [ -d build ] && [ ! -f build/CMakeCache.txt ]; then
+        rm -rf build
+    fi
+    # --clean forces a full wipe.
+    if [ "$FORCE_CLEAN" -eq 1 ]; then
+        rm -rf build
+    fi
+
+    # -DENABLE_OPT=OFF        skip the optional SPIRV-Tools optimizer dependency
+    #                         (would otherwise be fetched by update_glslang_sources.py)
+    # -DENABLE_GLSLANG_BINARIES=ON  build the standalone glslangValidator binary
+    # -DGLSLANG_TESTS=OFF     skip the test suite
+    cmake -B build \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+      -DENABLE_OPT=OFF \
+      -DENABLE_GLSLANG_BINARIES=ON \
+      -DGLSLANG_TESTS=OFF
+fi
 
 # --- Step 3: Build ----------------------------------------------------------
 
