@@ -21,7 +21,10 @@ set -e
 
 PREFIX="${PREFIX:-/usr/pkg}"
 OUTDIR="/root/artifacts"
-MESA_BUILD="/usr/src/graphics/mesa/build"
+SRCDIR="${SRCDIR:-/usr/src/graphics}"
+MESA_BUILD="$SRCDIR/mesa/build"
+GLSLANG_SRC="$SRCDIR/glslang"
+MESA_SRC="$SRCDIR/mesa"
 
 # Pull in compute_fingerprint from the shared lib (same directory as this script).
 SCRIPT_DIR="$(dirname "$0")"
@@ -49,7 +52,11 @@ mkdir -p "$OUTDIR"
 # ----------------------------------------------------------------------------
 echo ""
 echo "=====> Packaging glslang"
-GLSLANG_PATHS=""
+GLSLANG_STAGE="$ARTIFACT_TMPDIR/glslang-stage"
+rm -rf "$GLSLANG_STAGE"
+mkdir -p "$GLSLANG_STAGE"
+
+_glslang_found=0
 for p in \
     bin/glslangValidator \
     bin/glslang \
@@ -61,18 +68,34 @@ for p in \
     include/glslang \
     lib/cmake/glslang ; do
     if [ -e "$PREFIX/$p" ]; then
-        GLSLANG_PATHS="$GLSLANG_PATHS $p"
+        mkdir -p "$GLSLANG_STAGE/$(dirname "$p")"
+        cp -R "$PREFIX/$p" "$GLSLANG_STAGE/$(dirname "$p")/"
+        _glslang_found=1
     fi
 done
 
-if [ -n "$GLSLANG_PATHS" ]; then
-    # shellcheck disable=SC2086
-    tar -czf "$OUTDIR/glslang-${FP}.tar.gz" -C "$PREFIX" $GLSLANG_PATHS
+# Bundle glslang's upstream license text(s) so the binary redistribution honors
+# the project's attribution requirements. glslang keeps its license in
+# LICENSE.txt at the repo root.
+mkdir -p "$GLSLANG_STAGE/share/licenses/glslang"
+for lic in LICENSE.txt LICENSE LICENSE.md ; do
+    if [ -f "$GLSLANG_SRC/$lic" ]; then
+        cp "$GLSLANG_SRC/$lic" "$GLSLANG_STAGE/share/licenses/glslang/"
+    fi
+done
+if [ -z "$(ls -A "$GLSLANG_STAGE/share/licenses/glslang" 2>/dev/null)" ]; then
+    echo "  WARNING: no glslang LICENSE file found in $GLSLANG_SRC"
+    echo "           (the tarball will lack upstream attribution - check the source tree)"
+fi
+
+if [ "$_glslang_found" -eq 1 ]; then
+    tar -czf "$OUTDIR/glslang-${FP}.tar.gz" -C "$GLSLANG_STAGE" .
     echo "$FP" > "$OUTDIR/glslang-${FP}.tar.gz.fingerprint"
     echo "  Wrote $OUTDIR/glslang-${FP}.tar.gz"
 else
     echo "  WARNING: no glslang files found under $PREFIX - did you build it?"
 fi
+rm -rf "$GLSLANG_STAGE"
 
 # ----------------------------------------------------------------------------
 # Mesa: the Lavapipe driver and its ICD manifest. These are the artifacts that
@@ -97,6 +120,23 @@ fi
 if [ -d "$PREFIX/share/vulkan/icd.d" ]; then
     mkdir -p "$MESA_STAGE/share/vulkan"
     cp -R "$PREFIX/share/vulkan/icd.d" "$MESA_STAGE/share/vulkan/"
+fi
+
+# Bundle Mesa's upstream license text so the binary redistribution honors the
+# project's attribution requirements. Mesa keeps license info in a few places
+# depending on version (docs/license.rst, a top-level LICENSE, or licenses/).
+mkdir -p "$MESA_STAGE/share/licenses/mesa"
+for lic in license.rst LICENSE docs/license.rst ; do
+    if [ -f "$MESA_SRC/$lic" ]; then
+        cp "$MESA_SRC/$lic" "$MESA_STAGE/share/licenses/mesa/"
+    fi
+done
+if [ -d "$MESA_SRC/licenses" ]; then
+    cp -R "$MESA_SRC/licenses" "$MESA_STAGE/share/licenses/mesa/"
+fi
+if [ -z "$(ls -A "$MESA_STAGE/share/licenses/mesa" 2>/dev/null)" ]; then
+    echo "  WARNING: no Mesa LICENSE file found in $MESA_SRC"
+    echo "           (the tarball will lack upstream attribution - check the source tree)"
 fi
 
 if [ -n "$(ls -A "$MESA_STAGE" 2>/dev/null)" ]; then
