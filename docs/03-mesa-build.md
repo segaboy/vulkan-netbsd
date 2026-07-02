@@ -32,7 +32,13 @@ sh build-mesa.sh --build  # also run the ninja compile + install
 ```
 
 The script installs `bison`/`flex`, clones Mesa, and runs the Meson configure.
-It defaults to configure-only; the compile step is behind `--build`.
+It defaults to configure-only; the compile step is behind `--build`. On the
+`--build` path it first checks for a matching prebuilt artifact (see
+`04-prebuilt-artifacts.md`) and falls back to a source build if none exists.
+
+All output is also written to `/root/vulkan-netbsd-mesa.log`. The `ninja`
+compile step, when run manually, can additionally be teed to
+`/root/mesa-build.log` as shown in section 4.
 
 ---
 
