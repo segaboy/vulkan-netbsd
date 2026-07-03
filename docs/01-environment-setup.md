@@ -1,7 +1,7 @@
 # Environment Setup Guide: NetBSD 10.1 Minimal Install
 
 > **Scope:** This guide covers environment preparation on a **minimal install
-> of NetBSD 10.1 (amd64)** — specifically the base ISO installer with no
+> of NetBSD 10.1 (amd64)**, specifically the base ISO installer with no
 > additional sets selected during installation. If you used a cloud image,
 > a pre-built appliance, or selected additional sets during install, your
 > starting state will differ.
@@ -36,7 +36,7 @@ sh setup-env.sh
 
 The script performs every step in this guide: it installs the compiler and
 X11 sets, bootstraps pkgsrc, configures the environment, and installs all
-build dependencies. It is **idempotent** — safe to run more than once. If it
+build dependencies. It is **idempotent**, safe to run more than once. If it
 fails partway through, fix the issue and re-run it; completed steps are
 skipped.
 
@@ -67,15 +67,15 @@ Crucially, **all command output is written to a persistent log**:
 This log is the source of truth. Several of these phases are large downloads
 (pkgsrc is ~90 MB; LLVM is large), and on a slow or unstable link they can take
 a long time. If your SSH session drops mid-run, the log tells you exactly where
-things stand — reconnect and tail it:
+things stand, reconnect and tail it:
 
 ```sh
 tail -f /root/vulkan-netbsd-setup.log
 ```
 
 The spinner also watches the log's size. If no new output appears for ~25
-seconds — the signature of a network stall rather than a slow-but-working
-download — it flags `(no new output ... - network stall?)` on the status line,
+seconds, the signature of a network stall rather than a slow-but-working
+download, it flags `(no new output ... - network stall?)` on the status line,
 so you can tell a wedged transfer apart from one that is merely slow.
 
 ### Running detached (recommended on flaky connections)
@@ -98,7 +98,7 @@ it resumes from the first incomplete phase.
 > **Note on network mode.** Over VirtualBox with a wireless host, **NAT with
 > port forwarding is far more reliable than a Bridged adapter.** Bridged mode
 > puts the guest's MAC directly on the WiFi, which access points frequently
-> rate-limit or drop — producing exactly the stalled downloads and reset SSH
+> rate-limit or drop, producing exactly the stalled downloads and reset SSH
 > sessions the stall detector was added to surface. NAT routes guest traffic
 > through the host's own network stack, which WiFi handles cleanly, and avoids
 > the IPv6 failover delays seen on bridged setups. To connect over SSH with
@@ -111,7 +111,7 @@ it resumes from the first incomplete phase.
 
 ## 0. Prerequisites
 
-Install NetBSD 10.1 (amd64) from the **official installer ISO** — not a cloud
+Install NetBSD 10.1 (amd64) from the **official installer ISO**, not a cloud
 image. Cloud images (e.g. from bsd-cloud-image.org) run cloud-init on boot and
 will hang in a loop trying to reach the cloud metadata service at
 `169.254.169.254`, which does not exist in a VirtualBox NAT network.
@@ -161,7 +161,7 @@ cc --version                # expect: gcc (NetBSD ...) 10.5.0
 ## 3. Install the X11 sets
 
 The DRM and X11 libraries that Mesa depends on (`libdrm`, `libxshmfence`,
-`libX11`, `libxcb`, and friends) are **not** in pkgsrc — they are provided by
+`libX11`, `libxcb`, and friends) are **not** in pkgsrc, they are provided by
 NetBSD's X11 distribution sets. Install both the runtime (`xbase`) and the
 development headers (`xcomp`):
 
@@ -227,7 +227,7 @@ EOF
 
 > **Two things to get right about `PKG_PATH`:**
 > - The directory is **case-sensitive**: it is `All`, not `ALL`.
-> - Do **not** leave a trailing slash — it produces a double slash
+> - Do **not** leave a trailing slash, it produces a double slash
 >   (`.../All//cmake`) and `pkg_add` will report "Not Found".
 
 ---
@@ -250,12 +250,12 @@ pkg_add meson ninja python312 pkgconf py312-mako
 ```
 
 > **Note:** `ninja` may conflict with `ninja-build`, which is often already
-> installed as a dependency. This is harmless — verify with `ninja --version`.
+> installed as a dependency. This is harmless, verify with `ninja --version`.
 
 Why these tools:
 
-- **meson / ninja** — Mesa's build system.
-- **python3 / py312-mako** — Mesa uses Python with the Mako templating
+- **meson / ninja**, Mesa's build system.
+- **python3 / py312-mako**, Mesa uses Python with the Mako templating
   library at build time to auto-generate C source files before compilation.
 
 ---
@@ -307,8 +307,8 @@ ls /usr/X11R7/lib/libxcb*
 |---|---|---|
 | C compiler (gcc) | `comp` set | 10.5.0 |
 | X11 + DRM libraries | `xbase` / `xcomp` sets | libdrm 2.4.109 |
-| pkgsrc | 2026Q2 branch | — |
-| cmake, git | pkgsrc binary | — |
+| pkgsrc | 2026Q2 branch |, |
+| cmake, git | pkgsrc binary |, |
 | meson | pkgsrc binary | 1.10.1 |
 | ninja | pkgsrc binary | 1.13.2 |
 | python3 | pkgsrc binary | 3.12.x |
@@ -340,7 +340,7 @@ ls /usr/X11R7/lib/libxcb*
    slash.
 
 7. **X11/DRM libraries not in pkgsrc.** `libdrm`, `libX11`, `libxcb`,
-   `libxshmfence` are not pkgsrc packages — they come from `xbase`/`xcomp`.
+   `libxshmfence` are not pkgsrc packages, they come from `xbase`/`xcomp`.
    Fix: install the X11 sets (Step 3).
 
 8. **`ninja` vs `ninja-build` conflict.** Harmless; `ninja-build` already
