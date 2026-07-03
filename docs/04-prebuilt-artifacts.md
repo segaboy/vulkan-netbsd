@@ -1,4 +1,4 @@
-# Prebuilt Artifacts (build-once, reuse) — NetBSD Vulkan
+# Prebuilt Artifacts (build-once, reuse), NetBSD Vulkan
 
 > **Scope:** An optional fast path that lets the build scripts download prebuilt
 > glslang and Mesa (Lavapipe) binaries from a GitHub Release instead of building
@@ -8,7 +8,7 @@
 > **Status:** Living document. The mechanism is in place in the scripts; you
 > supply the actual release assets.
 
-Building glslang and Mesa from source is slow (Mesa especially — hundreds of
+Building glslang and Mesa from source is slow (Mesa especially, hundreds of
 targets plus LLVM linking). When repeatedly setting up or refining the scripts
 on the *same* environment, rebuilding every time is wasteful. This system lets
 you build once, publish the binaries, and have the scripts fetch them.
@@ -31,7 +31,7 @@ computed by `compute_fingerprint` in `scripts/lib-artifacts.sh` from `uname`,
 `llvm-config --version`, and the pkgsrc branch marker written by `setup-env.sh`
 (`/usr/pkgsrc/.pkgsrc_branch`). The build scripts only use a prebuilt artifact
 whose fingerprint matches the current machine; otherwise they build from source.
-This is the "fast path with source fallback" model — speed when the environment
+This is the "fast path with source fallback" model, speed when the environment
 matches, correctness when it doesn't.
 
 ## Producing artifacts (one time)
@@ -54,7 +54,7 @@ mesa-<fingerprint>.tar.gz      (+ .fingerprint)
 
 ## Publishing
 
-1. Create a GitHub Release on `segaboy/vulkan-netbsd`. Choose a tag — e.g.
+1. Create a GitHub Release on `segaboy/vulkan-netbsd`. Choose a tag, e.g.
    `prebuilt-latest` (simple, overwrite as you go) or a per-environment tag like
    `prebuilt-netbsd10.1-amd64`.
 2. Upload the `.tar.gz` files from `/root/artifacts/` as release assets.
@@ -101,6 +101,6 @@ NO_PREBUILT=1 sh build-mesa.sh --build
   but not every possible difference. If a fetched artifact ever misbehaves,
   rebuild from source with `NO_PREBUILT=1` and re-package.
 - **Artifacts are environment-specific.** A tarball built on NetBSD 10.1 / LLVM
-  19.1.7 will not be offered to a machine on a different combination — by design.
+  19.1.7 will not be offered to a machine on a different combination, by design.
 - **You publish the assets.** The scripts never upload; producing and uploading
   artifacts is a manual step (`package-artifacts.sh` + GitHub Release).
