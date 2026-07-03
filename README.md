@@ -6,15 +6,15 @@ and maintained.
 
 ---
 
-> ## Status: beta — Lavapipe Vulkan driver builds, installs, and registers on NetBSD
+> ## Status: beta. Lavapipe Vulkan driver builds, installs, and registers on NetBSD
 >
 > **Milestone reached:** Mesa configures, compiles, links, **installs**, and
 > **registers** the Lavapipe software Vulkan driver on NetBSD 10.1 amd64,
 > against LLVM 19.1.7. The driver (`libvulkan_lvp.so`, ~17 MB) installs into
 > `/usr/pkg/lib`, and its ICD manifest (advertising Vulkan API 1.4) installs
 > into `/usr/pkg/share/vulkan/icd.d/`, so a Vulkan loader on the system can
-> discover it. `ldd` resolves every dependency cleanly. The entire process —
-> environment setup, dependency builds, the Mesa build, and installation — is
+> discover it. `ldd` resolves every dependency cleanly. The entire process
+> (environment setup, dependency builds, the Mesa build, and installation) is
 > automated end to end and reproducible on a fresh install.
 >
 > **Prebuilt binaries are coming.** The tooling to build, fingerprint, and
@@ -102,7 +102,7 @@ sh install-mesa.sh
 Lavapipe Vulkan driver (`libvulkan_lvp.so`). `install-mesa.sh` then installs
 that driver and its ICD manifest into `/usr/pkg` and verifies the registration.
 
-If a build is interrupted or the machine crashes, re-run the same command — the
+If a build is interrupted or the machine crashes, re-run the same command, the
 build scripts detect the existing build and resume automatically.
 
 Together, these scripts take a fresh minimal install all the way to an
@@ -119,16 +119,16 @@ field notes for anyone attempting the same port.
 
 ## License
 
-The original work in this repository — the scripts, documentation, and any
-patches authored here — is released under the MIT License (see `LICENSE`).
+The original work in this repository, the scripts, documentation, and any
+patches authored here, is released under the MIT License (see `LICENSE`).
 
 This project builds, installs, and (optionally) redistributes third-party
 software that is **not** covered by that license and retains its own:
 
-- **Mesa** — primarily MIT-licensed (some components under other permissive
+- **Mesa**, primarily MIT-licensed (some components under other permissive
   licenses).
-- **glslang** — permissive licenses (BSD-style, Apache 2.0, and Khronos terms).
-- **LLVM** — Apache 2.0 with LLVM Exceptions. LLVM is installed separately via
+- **glslang**, permissive licenses (BSD-style, Apache 2.0, and Khronos terms).
+- **LLVM**, Apache 2.0 with LLVM Exceptions. LLVM is installed separately via
   pkgsrc and is not redistributed by this project.
 
 Prebuilt artifacts produced by `scripts/package-artifacts.sh` bundle the
