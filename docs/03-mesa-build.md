@@ -40,7 +40,7 @@ It defaults to configure-only; the compile step is behind `--build`. On the
 **Resuming after an interruption or crash:** if a build is interrupted (SSH
 drop, power loss, VM crash), just run the same command again. The script
 detects the existing configured build directory and **resumes** from where it
-left off — `ninja` only rebuilds what is missing — so you never have to resume
+left off, `ninja` only rebuilds what is missing, so you never have to resume
 the build by hand. Use `--clean` to override this and rebuild from scratch (for
 example, if a resumed build fails in a way that suggests a corrupted object
 from the crash).
@@ -102,12 +102,12 @@ meson setup build \
 
 Flag notes:
 
-- **`-Dvulkan-drivers=swrast`** — Lavapipe, the software Vulkan driver (target).
-- **`-Dgallium-drivers=llvmpipe`** — the LLVM-backed software rasterizer
+- **`-Dvulkan-drivers=swrast`**, Lavapipe, the software Vulkan driver (target).
+- **`-Dgallium-drivers=llvmpipe`**, the LLVM-backed software rasterizer
   Lavapipe builds on.
-- **`-Dplatforms=x11`** — window-system integration using the X11 libraries
+- **`-Dplatforms=x11`**, window-system integration using the X11 libraries
   from the `xbase`/`xcomp` sets.
-- **`-Dglx=disabled -Degl=disabled -Dgbm=disabled`** — disable OpenGL-adjacent
+- **`-Dglx=disabled -Degl=disabled -Dgbm=disabled`**, disable OpenGL-adjacent
   pieces we don't need, reducing the surface for platform-specific issues.
 - LLVM is auto-detected via `llvm-config` on `PATH`; no explicit flag needed.
   (Do **not** pass a hand-typed `-Dllvm=...`; see the port notes.)
