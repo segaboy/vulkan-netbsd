@@ -203,18 +203,6 @@ phase_verify() {
     echo
     echo "Disk:"
     df -h /
-    echo
-
-    # Disable the IPv6 default route. On VirtualBox NAT/bridged setups the guest
-    # often gets an IPv6 address with no working route to the internet, but
-    # fetches try IPv6 FIRST - every large download then stalls for a long time
-    # cycling through unreachable IPv6 addresses ("Can't connect to 2a04:...")
-    # before falling back to IPv4. Deleting the default IPv6 route makes fetches
-    # go straight to IPv4. This is re-applied on every run because DHCPv6 /
-    # router advertisements can re-add the route. Harmless if there is no such
-    # route (the delete just reports "not in table").
-    echo "Disabling IPv6 default route (prevents slow IPv6 fetch stalls)..."
-    route -n delete -inet6 default 2>/dev/null || echo "  (no IPv6 default route - fine)"
 }
 
 phase_compiler() {
