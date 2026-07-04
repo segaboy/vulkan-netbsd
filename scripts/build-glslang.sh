@@ -1,6 +1,6 @@
 #!/bin/sh
 #
-# build-glslang.sh — Build and install glslang from source on NetBSD.
+# build-glslang.sh - Build and install glslang from source on NetBSD.
 #
 # Scope:  Run AFTER setup-env.sh has prepared the environment. Builds the
 #         Khronos glslang reference compiler, which provides glslangValidator
@@ -22,14 +22,13 @@
 # All output is also written to /root/vulkan-netbsd-glslang.log
 #
 
-set -e   # stop on the first error
-
 # --- Configuration ----------------------------------------------------------
 
 SRCDIR="/usr/src/graphics"
 PREFIX="/usr/pkg"
 GLSLANG_REPO="https://github.com/KhronosGroup/glslang.git"
 LOG="/root/vulkan-netbsd-glslang.log"
+RAW_BASE="https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts"
 
 FORCE_CLEAN=0
 for _arg in "$@"; do
@@ -38,29 +37,41 @@ for _arg in "$@"; do
     esac
 done
 
-# --- Persistent logging -----------------------------------------------------
-# Capture everything this script prints to a log file (in addition to the
-# terminal), so a run can be inspected afterward or after an SSH drop:
-#     tail -f /root/vulkan-netbsd-glslang.log
-# Re-exec once through tee; the VNB_LOGGING guard prevents an infinite loop.
-if [ -z "${VNB_LOGGING:-}" ]; then
-    VNB_LOGGING=1
-    export VNB_LOGGING
-    {
-        echo "############################################################"
-        echo "# build-glslang.sh run: $(date)"
-        echo "############################################################"
-    } >> "$LOG"
-    exec sh "$0" "$@" 2>&1 | tee -a "$LOG"
+# --- Load shared progress UI (with graceful fallback) -----------------------
+# lib-ui.sh gives the phased progress bar / spinner / summary shared with the
+# other scripts. If it can't be loaded (e.g. offline), fall back to plain output
+# so the build still runs.
+
+SCRIPT_DIR="$(dirname "$0")"
+UI_LIB="$SCRIPT_DIR/lib-ui.sh"
+if [ ! -f "$UI_LIB" ]; then
+    ftp -o "$UI_LIB" "$RAW_BASE/lib-ui.sh" >/dev/null 2>&1 || true
 fi
 
-# --- Helpers ----------------------------------------------------------------
+# Start the log fresh with a run header.
+{
+    echo "############################################################"
+    echo "# build-glslang.sh run: $(date)   args: $*"
+    echo "############################################################"
+} >> "$LOG"
 
-say() {
-    echo ""
-    echo "=====> $1"
-    echo ""
-}
+if [ -f "$UI_LIB" ]; then
+    . "$UI_LIB"
+    UI=1
+else
+    UI=0
+    # Minimal fallbacks so the rest of the script is UI-agnostic.
+    ui_log()     { printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"; }
+    ui_phase()   { echo ""; echo "=====> $1"; ( "$2" ) 2>&1 | tee -a "$LOG"; }
+    ui_build()   { echo ""; echo "=====> $1"; ( "$2" ) 2>&1 | tee -a "$LOG"; }
+    ui_step_ok() { echo "  ok  $1"; }
+    ui_summary() { :; }
+fi
+
+STEP=0
+TOTAL=5
+RESULTS=""
+RUN_START="$(date +%s)"
 
 # --- Pre-flight checks ------------------------------------------------------
 
@@ -74,13 +85,10 @@ if [ -f /root/.profile ]; then
     . /root/.profile
 fi
 
-# cmake is required (installed by setup-env.sh).
 if ! command -v cmake >/dev/null 2>&1; then
     echo "ERROR: cmake not found. Run setup-env.sh first." >&2
     exit 1
 fi
-
-# git is required (installed by setup-env.sh).
 if ! command -v git >/dev/null 2>&1; then
     echo "ERROR: git not found. Run setup-env.sh first." >&2
     exit 1
@@ -89,24 +97,21 @@ fi
 # --- Prebuilt fast path -----------------------------------------------------
 # If a prebuilt glslang artifact matching this machine's environment exists on
 # the configured GitHub Release, download and install it instead of building
-# from source. Falls back to the source build on any mismatch or failure.
-# Set ARTIFACT_TAG to choose the release; set NO_PREBUILT=1 to force a source
-# build (useful when refining the build itself).
+# from source. Set ARTIFACT_TAG to choose the release; NO_PREBUILT=1 forces a
+# source build.
 
-ART_LIB="$(dirname "$0")/lib-artifacts.sh"
+ART_LIB="$SCRIPT_DIR/lib-artifacts.sh"
 if [ ! -f "$ART_LIB" ]; then
-    # Script was likely fetched standalone via ftp; fetch the lib beside it.
-    ftp -o "$ART_LIB" \
-      "https://raw.githubusercontent.com/segaboy/vulkan-netbsd/main/scripts/lib-artifacts.sh" \
-      >/dev/null 2>&1 || true
+    ftp -o "$ART_LIB" "$RAW_BASE/lib-artifacts.sh" >/dev/null 2>&1 || true
 fi
 
 if [ "${NO_PREBUILT:-0}" != "1" ] && [ -f "$ART_LIB" ]; then
     . "$ART_LIB"
-    say "Checking for a prebuilt glslang artifact"
+    echo ""
+    echo "=====> Checking for a prebuilt glslang artifact"
     if try_fetch_artifact glslang; then
         if command -v glslangValidator >/dev/null 2>&1; then
-            say "Installed prebuilt glslang - skipping source build"
+            echo "Installed prebuilt glslang - skipping source build."
             glslangValidator --version
             exit 0
         fi
@@ -116,30 +121,22 @@ fi
 
 # --- Resume detection -------------------------------------------------------
 # If a previously configured CMake build directory exists (has CMakeCache.txt),
-# RESUME from it instead of re-cloning/reconfiguring - cmake --build only
-# rebuilds what changed, so this recovers automatically from an interrupted or
-# crashed build without the user needing to know how. --clean forces a fresh
-# build. A partial dir (exists but no CMakeCache.txt) is treated as broken and
-# rebuilt clean.
+# RESUME from it. --clean forces a fresh build; a partial dir (no cache) is
+# treated as broken and rebuilt clean.
 
 RESUME=0
 if [ "$FORCE_CLEAN" -eq 0 ] && [ -f "$SRCDIR/glslang/build/CMakeCache.txt" ]; then
     RESUME=1
 fi
 
-# --- Step 1: Clone glslang (or reuse existing source when resuming) ----------
+# --- Phase functions --------------------------------------------------------
 
-if [ "$RESUME" -eq 1 ]; then
-    say "Existing configured build found - RESUMING"
-    echo "A previously configured glslang build directory was found."
-    echo "Resuming from where it left off (normal after an interrupted or"
-    echo "crashed build). The existing source is used as-is; it is not updated."
-    echo ""
-    echo "If the build later fails in a way that makes no sense, start fresh:"
-    echo "    sh build-glslang.sh --clean"
-    cd "$SRCDIR/glslang"
-else
-    say "Cloning glslang"
+phase_clone() {
+    if [ "$RESUME" -eq 1 ]; then
+        echo "Existing configured build found - resuming; using existing source."
+        cd "$SRCDIR/glslang"
+        return 0
+    fi
     mkdir -p "$SRCDIR"
     cd "$SRCDIR"
     if [ ! -d glslang ]; then
@@ -149,63 +146,71 @@ else
         cd glslang && git pull && cd ..
     fi
     cd "$SRCDIR/glslang"
-fi
+}
 
-# --- Step 2: Configure (skipped when resuming) ------------------------------
-
-if [ "$RESUME" -eq 1 ]; then
-    say "Skipping configure (already configured; resuming build)"
-else
-    say "Configuring glslang (CMake)"
-
-    # If a stale/broken build dir exists (no cache), remove it for a clean start.
-    if [ -d build ] && [ ! -f build/CMakeCache.txt ]; then
-        rm -rf build
+phase_configure() {
+    cd "$SRCDIR/glslang"
+    if [ "$RESUME" -eq 1 ]; then
+        echo "Already configured; skipping configure (resuming)."
+        return 0
     fi
-    # --clean forces a full wipe.
-    if [ "$FORCE_CLEAN" -eq 1 ]; then
-        rm -rf build
-    fi
+    # Remove a stale/broken build dir, or wipe on --clean.
+    if [ -d build ] && [ ! -f build/CMakeCache.txt ]; then rm -rf build; fi
+    if [ "$FORCE_CLEAN" -eq 1 ]; then rm -rf build; fi
 
-    # -DENABLE_OPT=OFF        skip the optional SPIRV-Tools optimizer dependency
-    #                         (would otherwise be fetched by update_glslang_sources.py)
-    # -DENABLE_GLSLANG_BINARIES=ON  build the standalone glslangValidator binary
-    # -DGLSLANG_TESTS=OFF     skip the test suite
     cmake -B build \
       -DCMAKE_BUILD_TYPE=Release \
       -DCMAKE_INSTALL_PREFIX="$PREFIX" \
       -DENABLE_OPT=OFF \
       -DENABLE_GLSLANG_BINARIES=ON \
       -DGLSLANG_TESTS=OFF
+}
+
+phase_compile() {
+    cd "$SRCDIR/glslang"
+    cmake --build build -j"$(sysctl -n hw.ncpu)"
+}
+
+phase_install() {
+    cd "$SRCDIR/glslang"
+    cmake --install build
+}
+
+phase_verify() {
+    if command -v glslangValidator >/dev/null 2>&1; then
+        glslangValidator --version
+        echo ""
+        echo "glslangValidator installed at: $(which glslangValidator)"
+    else
+        echo "ERROR: glslangValidator not found on PATH after install." >&2
+        echo "Check that $PREFIX/bin is in your PATH." >&2
+        return 1
+    fi
+}
+
+# --- Run --------------------------------------------------------------------
+
+if [ "$UI" -eq 1 ]; then
+    printf '%s== vulkan-netbsd: build glslang ==%s\n' "$UI_BAR" "$UI_RESET"
+    printf 'Logging all output to: %s\n' "$LOG"
 fi
 
-# --- Step 3: Build ----------------------------------------------------------
+ui_phase "Cloning glslang"        phase_clone     || { ui_summary; exit 1; }
+ui_phase "Configuring (CMake)"    phase_configure || { ui_summary; exit 1; }
+ui_build "Building glslang"       phase_compile   || { ui_summary; exit 1; }
+ui_phase "Installing to $PREFIX"  phase_install   || { ui_summary; exit 1; }
+ui_phase "Verifying"              phase_verify    || { ui_summary; exit 1; }
 
-say "Building glslang"
-cmake --build build -j"$(sysctl -n hw.ncpu)"
+ui_summary
 
-# --- Step 4: Install --------------------------------------------------------
+echo ""
+printf '%sglslang build complete.%s\n' "${UI_OK:-}" "${UI_RESET:-}"
+cat << EOF
 
-say "Installing glslang to $PREFIX"
-cmake --install build
-
-# --- Step 5: Verify ---------------------------------------------------------
-
-say "Verifying glslangValidator"
-if command -v glslangValidator >/dev/null 2>&1; then
-    glslangValidator --version
-    echo ""
-    echo "glslangValidator installed at: $(which glslangValidator)"
-else
-    echo "ERROR: glslangValidator not found on PATH after install." >&2
-    echo "Check that $PREFIX/bin is in your PATH." >&2
-    exit 1
-fi
-
-say "glslang build complete"
-cat << 'EOF'
 glslang is built and installed. glslangValidator is on your PATH.
 
-Next step: build Mesa with the Vulkan (Lavapipe) driver.
-(See docs — Mesa build guide, forthcoming.)
+Next step: build Mesa with the Vulkan (Lavapipe) driver:
+    sh build-mesa.sh --build
+
+Full log of this run: $LOG
 EOF
