@@ -87,6 +87,22 @@ log() {
     printf '%s  %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*" >> "$LOG"
 }
 
+# --- Fetch helper -----------------------------------------------------------
+# Wrapper around ftp(1) that forces IPv4 (-4) for THIS SCRIPT'S downloads only.
+#
+# Why: on some hosts (commonly VirtualBox NAT), the guest is offered an IPv6
+# address with no working route to the internet. ftp tries IPv6 first, so every
+# large download stalls for a long time cycling through unreachable IPv6
+# addresses ("Can't connect to 2a04:...") before falling back to IPv4. Passing
+# -4 makes each fetch go straight to IPv4.
+#
+# This changes only how this script's own fetches behave. It does NOT modify
+# the system's network configuration in any way. NetBSD's ftp (tnftp) has
+# supported -4 for many years.
+fetch() {
+    ftp -4 "$@"
+}
+
 # --- Progress rendering -----------------------------------------------------
 
 render_bar() {
@@ -211,7 +227,7 @@ phase_compiler() {
         echo "Compiler already present, skipping."
         return 0
     fi
-    ftp "${SETS_URL}/comp.tar.xz"
+    fetch "${SETS_URL}/comp.tar.xz"
     tar -xpJf comp.tar.xz -C /
     rm -f comp.tar.xz
     cc --version
@@ -223,8 +239,8 @@ phase_x11() {
         echo "X11 sets already present, skipping."
         return 0
     fi
-    ftp "${SETS_URL}/xbase.tar.xz"
-    ftp "${SETS_URL}/xcomp.tar.xz"
+    fetch "${SETS_URL}/xbase.tar.xz"
+    fetch "${SETS_URL}/xcomp.tar.xz"
     tar -xpJf xbase.tar.xz -C /
     tar -xpJf xcomp.tar.xz -C /
     rm -f xbase.tar.xz xcomp.tar.xz
@@ -253,7 +269,7 @@ phase_pkgsrc() {
     if [ "$_need_fetch" -eq 1 ]; then
         cd "$WORKDIR"
         rm -f pkgsrc.tar.gz
-        ftp "$PKGSRC_URL"
+        fetch "$PKGSRC_URL"
         tar -xzf pkgsrc.tar.gz -C /usr
         rm -f pkgsrc.tar.gz
         # Verify the extract actually produced a usable tree before proceeding.
